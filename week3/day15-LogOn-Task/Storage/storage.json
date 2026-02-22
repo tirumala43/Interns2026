@@ -1,0 +1,103 @@
+{
+"$schema": "https://Schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+"contentVersion": "1.0.0.0",
+"parameters": {
+    "storageAccountName": {
+        "type": "string",
+        "minLength":3,
+        "maxLength":24,
+        "defaultValue":"mysg"
+    },
+    "location":{
+        "type":"string",
+        "defaultValue":"eastus"
+    },
+    "skuName":{
+        "type": "array",
+        "defaultValue":["Standard_LRS","Standard_GRS","Standard_RAGRS"],
+        "allowedValues":["Standard_LRS","Standard_GRS","Standard_RAGRS","Premium_LRS"]
+    },
+    "kind":{
+        "type":"string",
+        "defaultValue":"StorageV2",
+        "allowedValues":[
+            "Storage",
+            "StorageV2",
+            "BlobStorage",
+            "FileStorage",
+            "BlockBlobStorage"
+        ]
+    }
+},
+"resources": [
+
+    // Create a storage account with parameters and uniqueString function to generate unique name for storage account 
+
+    {
+        "type": "Microsoft.Storage/storageAccounts",
+        "apiVersion": "2023-01-01",
+        "name": "[concat('sg',uniqueString(parameters('storageAccountName')))]",
+        "location": "[parameters('location')]",
+        "sku": {
+            "name": "[parameters('skuName')[0]]"
+        },
+        "kind": "[parameters('kind')]",
+        "properties":{
+            "accessTier":"Hot",
+            "allowBlobPublicAccess":true,    // cannot access blob data from public endpoint 
+            "publicNetworkAcess":"Enabled",   // allow access to storage account from public endpoint
+            "minimumTlsVersion":"TLS1_2"
+    
+        }
+     
+    },
+
+    // Create a blob service in the storage account
+
+    {
+        "type": "Microsoft.Storage/storageAccounts/blobServices",
+        "apiVersion": "2022-09-01",
+
+        // "name" : "[concat('sgblob',substring(uniqueString(parameters('storageAccountName')),0,6))]",
+        //        The above line is wrong because it has defined name -> "default" and cannot assign to blob service
+
+        "name":"[concat('sg',uniqueString(parameters('storageAccountName')),'/default')]",
+        "dependsOn":[
+            "[resourceId('Microsoft.Storage/storageAccounts',concat('sg',uniqueString(parameters('storageAccountName'))))]"
+        ]
+
+    },
+
+  // Create a container in the blob service of the storage account
+    {
+        "type": "Microsoft.Storage/storageAccounts/blobServices/containers",
+        "apiVersion":"2023-01-01",
+        "name": "[concat('sg',uniqueString(parameters('storageAccountName')),'/default/log-script-windows')]",
+        "dependsOn":[
+            "[resourceId('Microsoft.Storage/storageAccounts',concat('sg',uniqueString(parameters('storageAccountName'))))]"
+        ]
+    }
+
+],
+
+ "outputs":{
+        "storageAccountName":{
+            "type":"string",
+            "value":"[concat('sg',uniqueString(parameters('storageAccountName')))]"
+        },
+        "containerName":{
+            "type":"string",
+            "value":"[concat('sg',uniqueString(parameters('storageAccountName')),'/default/log-script-windows')]"
+        },
+        "primaryBlobEndpoint": {
+            "type":"string",
+            "value":"[reference(resourceId('Microsoft.Storage/storageAccounts',concat('sg',uniqueString(parameters('storageAccountName'))))).primaryEndpoints.blob]"
+        },
+       "scriptUri":{
+            "type":"string",
+            "value":"[concat(reference(resourceId('Microsoft.Storage/storageAccounts',concat('sg',uniqueString(parameters('storageAccountName'))))).primaryEndpoints.blob,'log-script-windows')]"
+        }
+
+ }
+
+}

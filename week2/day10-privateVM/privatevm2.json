@@ -28,7 +28,12 @@
     "publicSubnetPrefix": "10.0.1.0/24",
     "privateSubnetPrefix": "10.0.2.0/24",
     "privateVMName": "privateWebVM",
-    "publicVMName": "publicProxyVM"
+    "publicVMName": "publicProxyVM",
+     "ports": [
+    "22",
+    "80",
+    "443"
+  ]
   },
 
   "resources": [
@@ -61,6 +66,7 @@
       }
     },
 
+// Create a public ip address which is static one 
     {
       "type": "Microsoft.Network/publicIPAddresses",
       "apiVersion": "2024-05-01",
@@ -73,57 +79,40 @@
         "publicIPAllocationMethod": "Static"
       }
     },
-
+ 
+ // Network Security Group for public Subnet 
     {
-      "type": "Microsoft.Network/networkSecurityGroups",
-      "apiVersion": "2024-05-01",
-      "name": "publicNSG",
-      "location": "[parameters('location')]",
-      "properties": {
-        "securityRules": [
-          {
-            "name": "AllowHTTPS",
-            "properties": {
-              "priority": 100,
-              "access": "Allow",
-              "direction": "Inbound",
-              "protocol": "Tcp",
-              "sourcePortRange": "*",
-              "destinationPortRange": "443",
-              "sourceAddressPrefix": "*",
-              "destinationAddressPrefix": "*"
-            }
-          },
-          {
-            "name": "AllowSSH",
-            "properties": {
-              "priority": 101,
-              "access": "Allow",
-              "direction": "Inbound",
-              "protocol": "Tcp",
-              "sourcePortRange": "*",
-              "destinationPortRange": "22",
-              "sourceAddressPrefix": "*",
-              "destinationAddressPrefix": "*"
-            }
-          },
-          {
-  "name": "AllowHTTP",
+  "type": "Microsoft.Network/networkSecurityGroups",
+  "apiVersion": "2023-02-01",
+  "name": "publicNSG",
+  "location": "[parameters('location')]",
   "properties": {
-    "priority": 102,
-    "access": "Allow",
-    "direction": "Inbound",
-    "protocol": "Tcp",
-    "sourcePortRange": "*",
-    "destinationPortRange": "80",
-    "sourceAddressPrefix": "*",
-    "destinationAddressPrefix": "*"
-  }
-}
-
+    "securityRules": [
+      {
+        "copy": [
+          {
+            "name": "nsgRuleLoop",
+            "count": 3,
+            "input": {
+              "name": "[concat('Allow-Port-', variables('ports')[copyIndex('nsgRuleLoop')])]",
+              "properties": {
+                "priority": "[add(1000, copyIndex('nsgRuleLoop'))]",
+                "protocol": "Tcp",
+                "access": "Allow",
+                "direction": "Inbound",
+                "sourceAddressPrefix": "*",
+                "sourcePortRange": "*",
+                "destinationAddressPrefix": "*",
+                "destinationPortRange": "[variables('ports')[copyIndex('nsgRuleLoop')]]"
+              }
+            }
+          }
         ]
       }
-    },
+    ]
+  }
+},
+
 
     {
       "type": "Microsoft.Network/networkSecurityGroups",
@@ -185,6 +174,7 @@
               }
             }
           }
+          
         ],
         "networkSecurityGroup": {
           "id": "[resourceId('Microsoft.Network/networkSecurityGroups', 'privateNSG')]"
@@ -207,7 +197,8 @@
           {
             "name": "ipconfig1",
             "properties": {
-              "privateIPAllocationMethod": "Dynamic",
+              "privateIPAllocationMethod": "Static",
+               "privateIPAddress": "10.0.1.8",
               "subnet": {
                 "id": "[resourceId('Microsoft.Network/virtualNetworks/subnets', variables('vnetName'), variables('publicSubnetName'))]"
               },
@@ -242,7 +233,54 @@
           "linuxConfiguration": {
             "disablePasswordAuthentication": false
           },
-          "customData": "[base64('#!/bin/bash\nsudo apt update\n sudo apt install nginx -y\n sudo rm /var/www/html/index.nginx-debian.html\n sudo bash -c \"cat > /var/www/html/index.html\" <<EOF\n<!DOCTYPE html>\n<html>\n<head>\n<title>ARM Reverse Proxy Task</title>\n<style>\nbody { font-family: Arial; text-align: center; background-color: #f4f6f9; margin: 0; padding: 0; }\nheader { background-color: #0078D4; color: white; padding: 20px; }\n.container { margin-top: 40px; }\n.card { background: white; width: 60%; margin: auto; padding: 20px; border-radius: 8px; box-shadow: 0 4px 10px rgba(0,0,0,0.1); }\nbutton { background-color: #0078D4; color: white; padding: 10px 20px; border: none; border-radius: 5px; cursor: pointer; }\nbutton:hover { background-color: #005a9e; }\n</style>\n<script>\nfunction showMessage() {\n document.getElementById(\"demo\").innerHTML = \"Reverse Proxy is Working Successfully!\";\n}\n</script>\n</head>\n<body>\n<header>\n<h1>ARM Reverse Proxy Deployment</h1>\n</header>\n<div class=\"container\">\n<div class=\"card\">\n<h2>Task Details</h2>\n<p>This infrastructure was deployed using Azure ARM Templates.</p>\n<p>Architecture includes:</p>\n<ul style=\"text-align:left;\">\n<li>Virtual Network with Public & Private Subnets</li>\n<li>Network Security Groups</li>\n<li>Public Reverse Proxy VM</li>\n<li>Private Backend VM</li>\n<li>Static Private IP for Backend</li>\n</ul>\n<button onclick=\"showMessage()\">Verify Deployment</button>\n<p id=\"demo\" style=\"margin-top:15px; font-weight:bold;\"></p>\n</div>\n</div>\n</body>\n</html>\nEOF\nsudo systemctl enable nginx\nsudo systemctl restart nginx')]"
+          "customData": "[base64('#!/bin/bash\n
+          sudo apt update\n 
+          sudo apt install nginx -y\n
+           sudo rm /var/www/html/index.nginx-debian.html\n
+            sudo bash -c \"cat > /var/www/html/index.html\" <<EOF\n
+            <!DOCTYPE html>\n
+            <html>\n
+            <head>\n
+            <title>ARM Reverse Proxy Task</title>\n
+            <style>\n
+            body { font-family: Arial; text-align: center; background-color: #f4f6f9; margin: 0; padding: 0; }\n
+            header { background-color: #0078D4; color: white; padding: 20px; }\n
+            .container { margin-top: 40px; }\n
+            .card { background: white; width: 60%; margin: auto; padding: 20px; border-radius: 8px; box-shadow: 0 4px 10px rgba(0,0,0,0.1); }\n
+            button { background-color: #0078D4; color: white; padding: 10px 20px; border: none; border-radius: 5px; cursor: pointer; }\n
+            button:hover { background-color: #005a9e; }\n
+            </style>\n
+            <script>\n
+            function showMessage() {\n
+             document.getElementById(\"demo\").innerHTML = \"Reverse Proxy is Working Successfully!\";\n
+             }\n
+             </script>\n
+             </head>\n
+             <body>\n
+             <header>\n
+             <h1>ARM Reverse Proxy Deployment</h1>\n
+             </header>\n
+             <div class=\"container\">\n
+             <div class=\"card\">\n
+             <h2>Task Details</h2>\n
+             <p>This infrastructure was deployed using Azure ARM Templates.</p>\n
+             <p>Architecture includes:</p>\n
+             <ul style=\"text-align:left;\">\n
+             <li>Virtual Network with Public & Private Subnets</li>\n
+             <li>Network Security Groups</li>\n
+             <li>Public Reverse Proxy VM</li>\n
+             <li>Private Backend VM</li>\n
+             <li>Static Private IP for Backend</li>\n
+             </ul>\n
+             <button onclick=\"showMessage()\">Verify Deployment</button>\n
+             <p id=\"demo\" style=\"margin-top:15px; font-weight:bold;\"></p>\n
+             </div>\n
+             </div>\n
+             </body>\n
+             </html>\n
+             EOF\n
+             sudo systemctl enable nginx\n
+             sudo systemctl restart nginx')]"
 
 
         },
