@@ -10,6 +10,30 @@
     },
     "containerName": {
       "value": "public-files"
+    },
+    "vmName": {
+      "value": "myVM"
+    },
+    "vmSize": {
+      "value": "Standard_DS2_v3"
+    },
+    "adminUsername": {
+      "value": "azureuser"
+    },
+    "adminPassword": {
+      "value": "P@ssw0rd1234567890"
+    },
+    "osType": {
+      "value": "Windows"
+    },
+    "imagePublisher": {
+      "value": "MicrosoftWindowsServer"
+    },
+    "imageOffer": {
+      "value": "WindowsServer"
+    },
+    "imageSku": {
+      "value": "2019-Datacenter"
     }
   }
 }
